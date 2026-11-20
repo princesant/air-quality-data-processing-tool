@@ -1,5 +1,7 @@
 # Air Quality Data Processing Tool
 
+**Live app:** <https://air-quality-data-processing-tool.onrender.com> (free hosting: the first visit after a quiet spell can take about a minute to wake up)
+
 A local web app for converting, merging, cleaning and exploring data from three air-quality and weather instruments:
 
 | Instrument | What the tool reads |
@@ -51,7 +53,7 @@ The repository includes a Render Blueprint (`render.yaml`) for a free web servic
 
 1. In the Render dashboard, choose **New → Blueprint** and select this repository.
 2. Click **Apply**. Render installs the requirements and starts the app with gunicorn.
-3. Every push to `main` then redeploys automatically.
+3. If the repository is linked through Render's GitHub connection, every push to `main` redeploys automatically. If it was added by its public URL, use **Manual Deploy** in Render after pushing changes.
 
 On the free plan the service sleeps after 15 minutes without visits and takes up to a minute to wake. Uploaded data lives only in memory, so a restart clears it. The live app is open to anyone with the link, and uploaded files are processed on Render's servers.
 
