@@ -1,0 +1,17 @@
+# Render Blueprint: one free web service built from this repository
+services:
+  - type: web
+    name: air-quality-data-processing-tool
+    runtime: python
+    plan: free
+    region: singapore
+    buildCommand: pip install -r requirements.txt
+    # One worker, because uploaded data is held in that process's memory
+    startCommand: gunicorn server:app --workers 1 --threads 4 --timeout 180 --bind 0.0.0.0:$PORT
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    envVars:
+      - key: MAX_UPLOAD_MB
+        value: "60"
+      - key: MAX_STORED_ITEMS
+        value: "12"

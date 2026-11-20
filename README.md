@@ -45,6 +45,18 @@ python server.py
 
 The app opens at <http://127.0.0.1:5000>. Use `python server.py --no-browser` to start it without opening a browser. Uploaded data is held in memory only while the app runs; nothing is sent elsewhere.
 
+## Deploying on Render
+
+The repository includes a Render Blueprint (`render.yaml`) for a free web service in the Singapore region.
+
+1. In the Render dashboard, choose **New → Blueprint** and select this repository.
+2. Click **Apply**. Render installs the requirements and starts the app with gunicorn.
+3. Every push to `main` then redeploys automatically.
+
+On the free plan the service sleeps after 15 minutes without visits and takes up to a minute to wake. Uploaded data lives only in memory, so a restart clears it. The live app is open to anyone with the link, and uploaded files are processed on Render's servers.
+
+`MAX_UPLOAD_MB` and `MAX_STORED_ITEMS` limit the upload size and the number of datasets kept in memory.
+
 ## Project layout
 
 ```

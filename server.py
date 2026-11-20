@@ -6,6 +6,7 @@ Uploaded and processed data is held in memory for this session only."""
 import io
 import json
 import math
+import os
 import threading
 import uuid
 import zipfile
@@ -22,14 +23,15 @@ import aq_charts as charts
 import aq_core as core
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
+# Limits can be lowered on small hosted instances through environment variables
+app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_UPLOAD_MB", 500)) * 1024 * 1024
 # Keep the instrument order (DustTrak, weather station, C-12) in the options passed to the page
 app.jinja_env.policies["json.dumps_kwargs"] = {"sort_keys": False}
 
 # ===== IN-MEMORY STORE =====
 STORE = OrderedDict()
 STORE_LOCK = threading.Lock()
-MAX_ITEMS = 40
+MAX_ITEMS = int(os.environ.get("MAX_STORED_ITEMS", 40))
 
 
 def put(item):
@@ -207,6 +209,11 @@ def index():
 
 
 _PLOTLY_JS = None
+
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
 
 
 @app.route("/vendor/plotly.min.js")

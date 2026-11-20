@@ -2,3 +2,4 @@ flask>=3.0
 pandas>=2.0
 numpy>=1.24
 plotly>=5.20
+gunicorn>=22.0; platform_system != "Windows"
