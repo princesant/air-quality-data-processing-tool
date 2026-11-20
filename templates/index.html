@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Air Quality Data Processing Tool</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script src="{{ url_for('plotly_js') }}" defer></script>
+  <script>window.AQ_OPTIONS = {{ options|tojson }};</script>
+  <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l3-8 4 16 3-8h5"/></svg>
+      </div>
+      <div>
+        <div class="brand-name">Air Quality Data Processing Tool</div>
+        <div class="brand-sub">DustTrak · Weather station · C-12 Black Carbon</div>
+      </div>
+    </div>
+
+    <div class="inst-switch">
+      <div class="nav-label">Instrument</div>
+      <div id="inst-switch"></div>
+    </div>
+
+    <nav class="nav">
+      <div class="nav-label">Workflow</div>
+      <button class="nav-item active" data-view="convert">
+        <span class="nav-num">1</span>
+        <span class="nav-text">Convert<small>Raw exports → tidy CSV</small></span>
+      </button>
+      <button class="nav-item" data-view="merge">
+        <span class="nav-num">2</span>
+        <span class="nav-text">Merge<small>Combine sessions</small></span>
+      </button>
+      <button class="nav-item" data-view="clean">
+        <span class="nav-num">3</span>
+        <span class="nav-text">Clean<small>Build the QC pipeline</small></span>
+      </button>
+      <button class="nav-item" data-view="results">
+        <span class="nav-num">4</span>
+        <span class="nav-text">Results<small>Charts, trends &amp; downloads</small></span>
+      </button>
+    </nav>
+
+    <div class="side-card" id="active-dataset">
+      <div class="side-card-label">Active dataset</div>
+      <div class="side-card-value">None yet</div>
+      <div class="side-card-sub">Upload or merge files to begin</div>
+    </div>
+
+    <div class="side-foot">
+      Every cleaning step is logged and downloadable, so decisions stay traceable.
+      Data is held in memory only while the app is running.
+    </div>
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <main class="main">
+
+    <!-- VIEW 1: CONVERT -->
+    <section class="view active" id="view-convert">
+      <header class="page-head">
+        <div>
+          <div class="eyebrow">Step 1</div>
+          <h1 id="convert-title">Convert raw files</h1>
+          <p id="convert-desc"></p>
+        </div>
+      </header>
+
+      <div class="card">
+        <div class="dropzone" id="convert-drop" data-multiple="true"></div>
+        <div class="convert-options mt" id="convert-options"></div>
+        <div class="row-between mt">
+          <label class="check"><input type="checkbox" id="include-extra"> <span id="include-extra-label"></span></label>
+          <button class="btn btn-primary" id="convert-btn" disabled>
+            <svg viewBox="0 0 24 24"><path d="M4 4v6h6M20 20v-6h-6"/><path d="M20 10a8 8 0 0 0-14.9-3M4 14a8 8 0 0 0 14.9 3"/></svg>
+            Convert files
+          </button>
+        </div>
+      </div>
+
+      <div id="convert-result" hidden>
+        <div class="stats" id="convert-stats"></div>
+        <div class="card">
+          <div class="card-head">
+            <h2>Converted files</h2>
+            <div class="actions">
+              <a class="btn" id="convert-zip">
+                <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v3h16v-3"/></svg>Download all (ZIP)</a>
+              <button class="btn btn-primary" id="to-merge">Merge these files
+                <svg viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></button>
+            </div>
+          </div>
+          <div id="convert-failures"></div>
+          <div id="convert-table"></div>
+          <div class="field mt">
+            <label>Preview a converted file</label>
+            <select id="convert-preview-select"></select>
+          </div>
+          <div id="convert-preview"></div>
+        </div>
+        <div class="card" id="convert-alarms" hidden>
+          <div class="card-head"><h2>Instrument alarm log</h2><span class="muted">From Alarm.TXT · included in the ZIP as alarm_log.csv</span></div>
+          <div id="convert-alarms-table"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 2: MERGE -->
+    <section class="view" id="view-merge">
+      <header class="page-head">
+        <div>
+          <div class="eyebrow">Step 2</div>
+          <h1>Merge monitoring sessions</h1>
+          <p>Combine converted files into one time-sorted dataset. Raw <span class="inst-name">instrument</span> exports uploaded here are converted automatically.</p>
+        </div>
+      </header>
+
+      <div class="card">
+        <div class="field">
+          <label>Source</label>
+          <div class="segmented" id="merge-source">
+            <label><input type="radio" name="merge-source" value="batch" disabled><span id="merge-batch-label">Files converted in step 1</span></label>
+            <label><input type="radio" name="merge-source" value="upload" checked><span>Upload CSV files</span></label>
+          </div>
+        </div>
+        <div class="dropzone mt" id="merge-drop" data-multiple="true"></div>
+        <div class="row-between mt">
+          <div class="inline-checks">
+            <label class="check"><input type="checkbox" id="merge-dedupe" checked> Remove duplicate timestamps</label>
+            <label class="check"><input type="checkbox" id="merge-source-col"> Add a "Source file" column</label>
+          </div>
+          <button class="btn btn-primary" id="merge-btn" disabled>
+            <svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+            Merge files
+          </button>
+        </div>
+      </div>
+
+      <div id="merge-result" hidden>
+        <div class="stats" id="merge-stats"></div>
+        <div class="spark-grid" id="merge-sparks"></div>
+        <div class="card">
+          <div class="card-head">
+            <h2>Time series</h2>
+            <div class="actions">
+              <a class="btn" id="merge-download">
+                <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v3h16v-3"/></svg>Download merged CSV</a>
+              <button class="btn btn-primary" id="to-clean">Clean this dataset
+                <svg viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></button>
+            </div>
+          </div>
+          <div id="merge-explorer"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Data preview</h2></div>
+          <div id="merge-preview"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 3: CLEAN -->
+    <section class="view" id="view-clean">
+      <header class="page-head">
+        <div>
+          <div class="eyebrow">Step 3</div>
+          <h1>Clean &amp; quality-control</h1>
+          <p>Choose a dataset, review it, then enable the cleaning steps you need. Nothing changes until you apply the pipeline.</p>
+        </div>
+      </header>
+
+      <div class="card">
+        <div class="field">
+          <label>Data source</label>
+          <div class="segmented" id="clean-source">
+            <label><input type="radio" name="clean-source" value="merged" disabled><span>Merged data</span></label>
+            <label><input type="radio" name="clean-source" value="upload" checked><span>Upload a CSV file</span></label>
+          </div>
+        </div>
+        <div id="clean-upload-area">
+          <div class="dropzone mt" id="clean-drop"></div>
+          <div class="row-between mt">
+            <label class="check"><input type="checkbox" id="dayfirst" checked> Dates are day-first (DD/MM/YYYY)</label>
+            <button class="btn btn-primary" id="clean-load-btn" disabled>Load file</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="clean-workspace" hidden>
+        <div class="notice" id="clean-notice" hidden></div>
+        <div class="card profile-bar">
+          <div class="field">
+            <label>Instrument profile</label>
+            <select id="clean-profile"></select>
+          </div>
+          <p class="muted" id="clean-profile-note"></p>
+        </div>
+        <div class="stats" id="clean-stats"></div>
+
+        <div class="card">
+          <div class="tabs" data-tabs="overview">
+            <button class="tab active" data-tab="preview">Preview</button>
+            <button class="tab" data-tab="profile">Column profile</button>
+            <button class="tab" data-tab="missing">Missing values</button>
+          </div>
+          <div class="tab-panel active" data-panel="preview" id="ov-preview"></div>
+          <div class="tab-panel" data-panel="profile" id="ov-profile"></div>
+          <div class="tab-panel" data-panel="missing" id="ov-missing"></div>
+        </div>
+
+        <div class="section-title">
+          <h2>Cleaning pipeline</h2>
+          <p>Steps run from top to bottom. Click a step to open it; use the switch to turn it on or off.</p>
+        </div>
+        <div id="pipeline"></div>
+
+        <div class="apply-bar">
+          <div class="chips" id="pipeline-chips"></div>
+          <button class="btn btn-primary btn-lg" id="apply-btn">
+            <svg viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg>
+            Apply cleaning pipeline
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 4: RESULTS -->
+    <section class="view" id="view-results">
+      <header class="page-head">
+        <div>
+          <div class="eyebrow">Step 4</div>
+          <h1>Results &amp; analysis</h1>
+          <p id="results-sub">Apply a cleaning pipeline to see results here.</p>
+        </div>
+      </header>
+
+      <div class="empty" id="results-empty">
+        <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/></svg>
+        <h3>No results yet</h3>
+        <p>Load a dataset in the Clean step and apply the pipeline.</p>
+        <button class="btn btn-primary" data-goto="clean">Go to Clean</button>
+      </div>
+
+      <div id="results-body" hidden>
+        <div class="stats" id="results-stats"></div>
+
+        <div class="card">
+          <div class="card-head"><h2>Cleaning log</h2><span class="muted" id="results-time"></span></div>
+          <div id="results-log"></div>
+        </div>
+
+        <div class="card">
+          <div class="tabs" data-tabs="results">
+            <button class="tab active" data-tab="ts">Time series &amp; trends</button>
+            <button class="tab" data-tab="ba">Before vs after</button>
+            <button class="tab" data-tab="dist">Distribution</button>
+            <button class="tab" data-tab="diurnal">Diurnal pattern</button>
+            <button class="tab" data-tab="rel">Relationships</button>
+            <button class="tab" data-tab="data">Data &amp; statistics</button>
+            <button class="tab" data-tab="removed">Removed rows</button>
+            <button class="tab" data-tab="inst" hidden>Instrument</button>
+          </div>
+          <div class="tab-panel active" data-panel="ts" id="res-ts"></div>
+          <div class="tab-panel" data-panel="ba" id="res-ba"></div>
+          <div class="tab-panel" data-panel="dist" id="res-dist"></div>
+          <div class="tab-panel" data-panel="diurnal" id="res-diurnal"></div>
+          <div class="tab-panel" data-panel="rel" id="res-rel"></div>
+          <div class="tab-panel" data-panel="data" id="res-data"></div>
+          <div class="tab-panel" data-panel="removed" id="res-removed"></div>
+          <div class="tab-panel" data-panel="inst" id="res-inst"></div>
+        </div>
+
+        <div class="card downloads">
+          <div>
+            <h2>Downloads</h2>
+            <p class="muted">Cleaned data plus an audit trail of every change.</p>
+          </div>
+          <div class="actions">
+            <a class="btn btn-primary" id="dl-cleaned"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v3h16v-3"/></svg>Cleaned CSV</a>
+            <a class="btn" id="dl-report">Cleaning report</a>
+            <a class="btn" id="dl-removed">Removed rows</a>
+            <a class="btn" id="dl-zip">Everything (ZIP)</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="toasts" id="toasts"></div>
+</body>
+</html>

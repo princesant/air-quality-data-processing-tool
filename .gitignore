@@ -1,0 +1,21 @@
+# Field data stays local: do not commit monitoring files
+Sample Data/
+*.csv
+*.CSV
+*.TXT
+*.txt
+*.LOG
+!requirements.txt
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local tooling
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
